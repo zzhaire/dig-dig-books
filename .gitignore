@@ -1,5 +1,6 @@
 # 中间生成的数据集也放这里
 dataset
 code/.ipynb_checkpoints
+code/__pycache__
 .history/
 model

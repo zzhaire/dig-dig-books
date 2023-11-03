@@ -1,27 +1,30 @@
-import random 
 import pandas as pd
-data = pd.read_csv("../dataset/train.csv")
-data_part1 = data.sample(n=1000,random_state=42)
-data_part2 = data.sample(n=300,random_state=24)
-data_part3 = data.sample(n=300,random_state=88)
-
- # 下载模型
-from transformers import BertTokenizer,BertModel
-from transformers import AutoTokenizer, AutoModelForMaskedLM
-print ("------下载模型中-----------")
-tokenizer = AutoTokenizer.from_pretrained("bert-large-cased")
-bert = AutoModelForMaskedLM.from_pretrained("bert-large-cased")
-
-print ("-------finish load----------")
-
-
-''' 常量和外部包 '''
-import torch
+from sklearn.model_selection import train_test_split
+from transformers import BertTokenizer,BertModel,AutoTokenizer, AutoModelForMaskedLM
 from torch import nn
 import numpy as np
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split,KFold,StratifiedKFold
 from torch.optim import Adam
 from tqdm import tqdm
+import torch
+import os
+
+# **************读取数据和模型************
+data = pd.read_csv("../dataset/train.csv")
+data_part = data.sample(n=60000,random_state=42)
+data_shuffled = data_part.sample(frac=1, random_state=42)  # 随机打乱数据
+train_data, test_data = train_test_split(data_shuffled, test_size=0.3, random_state=42)  # 分割成训练集和测试集
+
+K_FOLDS = 6 # K折训练
+# K折训练的模型
+kf = StratifiedKFold(n_splits=K_FOLDS,shuffle=True,random_state=42)
+
+ # ***************下载模型*****************
+if 1:
+    print ("下载模型中...")
+    tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
+    bert = AutoModelForMaskedLM.from_pretrained("bert-base-cased")
+    print ("!模型下载结束")
 
 LABELS = {
     'Literature & Fiction':0,
@@ -49,8 +52,6 @@ LABELS = {
     'Comics & Graphic Novels':22,
     'Computers & Technology':23
 }
-
-"""没啥用,方便简化代码"""
 class Dataset(torch.utils.data.Dataset):
     def __init__(self ,df):
         self.labels = [LABELS[label] for label in df['category']]
@@ -81,8 +82,6 @@ class Dataset(torch.utils.data.Dataset):
         batch_texts = self.get_batch_texts(idx)
         batch_y = self.get_batch_labels(idx)
         return batch_texts, batch_y
-
-""" 构建模型 """
 class BertClassifier(nn.Module):
     def __init__(self, dropout=0.5):
         super(BertClassifier, self).__init__()
@@ -106,8 +105,8 @@ def train(model, train_data, val_data, learning_rate, epochs):
     # 通过Dataset类获取训练和验证集
     train, val = Dataset(train_data), Dataset(val_data)
     # DataLoader根据batch_size获取数据，训练时选择打乱样本
-    train_dataloader = torch.utils.data.DataLoader(train, batch_size=10, shuffle=True)
-    val_dataloader = torch.utils.data.DataLoader(val, batch_size=10)
+    train_dataloader = torch.utils.data.DataLoader(train, batch_size=5, shuffle=True)
+    val_dataloader = torch.utils.data.DataLoader(val, batch_size=5)
 
     # 定义损失函数和优化器
     criterion = nn.CrossEntropyLoss()
@@ -173,7 +172,23 @@ def train(model, train_data, val_data, learning_rate, epochs):
               | Val Loss: {total_loss_val / len(val_data): .3f} 
               | Val Accuracy: {total_acc_val / len(val_data): .3f}''')
 
-EPOCHS = 5
-model = BertClassifier()
-LR = 1e-6
-train(model, data_part1, data_part2, LR, EPOCHS)
+model_save_path = "../model/BERT"  # 设置保存模型的路径
+def trainAndSaveModel(model, train_data, val_data, learning_rate, epochs, model_save_path):
+    # ...（在你的训练函数中的其余部分）
+    # 循环遍历K折
+    
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_data, train_data['category'])):
+        print(f"现在是第{fold}折")
+        train_fold = train_data.iloc[train_idx]
+        val_fold = train_data.iloc[val_idx]
+
+        # 在每个折叠中训练模型
+        train(model, train_fold, val_fold, learning_rate, epochs)
+
+        # 保存模型
+        torch.save(model.state_dict(), f"{model_save_path}_fold{fold}.pt")
+
+model = BertClassifier()  # 初始化你的模型
+learning_rate = 1e-5  # 设置学习率
+epochs = 5  # 设置训练轮数
+trainAndSaveModel(model, train_data, test_data, learning_rate, epochs, model_save_path)
