@@ -12,7 +12,7 @@ import logging
 
 # **************读取数据和模型************
 data = pd.read_csv("../dataset/train.csv")
-data_part = data.sample(n=10, random_state=42, replace=True)
+data_part = data.sample(n=60000, random_state=42, replace=True)
 data_shuffled = data_part.sample(frac=1, random_state=42)  # 随机打乱数据
 train_data, test_data = train_test_split(
     data_shuffled, test_size=0.3, random_state=42
