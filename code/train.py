@@ -23,7 +23,7 @@ K_FOLDS = 6  # K折训练
 kf = StratifiedKFold(n_splits=K_FOLDS, shuffle=True, random_state=42)
 
 # ***************下载模型*****************
-if 0:
+if 1:# 下载模型
     print("下载模型中...")
     tokenizer = AutoTokenizer.from_pretrained("bert-base-cased")
     tokenizer.save_pretrained("../model/Tokenizer")
@@ -32,7 +32,7 @@ if 0:
     bert_basic = BertModel.from_pretrained("bert-base-cased")
     bert_basic.save_pretrained("../model/BERT_BASIC")
     print("!模型下载结束")
-if 1:
+if 0:# 
     print("模型加载中...")
     tokenizer = AutoTokenizer.from_pretrained("../model/Tokenizer")
     bert = AutoModelForMaskedLM.from_pretrained("../model/BERT_ROW")
